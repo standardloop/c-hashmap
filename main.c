@@ -22,8 +22,13 @@ int main(void)
     HashMapEntry *example_entry = HashMapEntryInit("key", example_value, CHAR_ARR_t);
     HashMapInsert(map, example_entry);
 
-    HashMapEntry *get_entry = HashMapGet(map, "key");
-    printf("%s\n", (char *)get_entry->value);
+    char *example_value_2 = malloc(sizeof(char) * 4);
+    strcpy(example_value_2, "foo");
+    HashMapEntry *example_entry_2 = HashMapEntryInit("key2", example_value_2, CHAR_ARR_t);
+    HashMapInsert(map, example_entry_2);
+
+    HashMapEntry *get_test = HashMapGet(map, "key2");
+    printf("%s\n", (char *)get_test->value);
 
     FreeHashMap(map);
 

@@ -80,17 +80,24 @@ extern void HashMapInsert(HashMap *map, HashMapEntry *entry)
         // resize?
     }
     u_int32_t index = map->hashFunction(entry->key, map->capacity);
-    if (map->entries[index] == NULL)
+    HashMapEntry *collision = map->entries[index];
+    if (collision == NULL)
     {
         map->entries[index] = entry;
     }
     else
     {
-        // linked list
+        printf("[HashMapInsert]: COLLISION at index: %u\n", index);
+        HashMapEntry *iterator_prev = collision;
+        HashMapEntry *iterator = collision->next;
+        while (iterator != NULL)
+        {
+            iterator = iterator->next;
+            iterator_prev = iterator_prev->next;
+        }
+        iterator_prev->next = entry;
     }
     map->size++;
-
-    return;
 }
 
 extern HashMapEntry *HashMapGet(HashMap *map, char *key)
@@ -100,16 +107,31 @@ extern HashMapEntry *HashMapGet(HashMap *map, char *key)
         return NULL;
     }
     u_int32_t index = map->hashFunction(key, map->capacity);
-    if (map->entries[index]->next == NULL)
+    HashMapEntry *entry = map->entries[index];
+    if (entry == NULL)
     {
+        return NULL;
+    }
+    else if (entry->next == NULL)
+    {
+        printf("[HashMapEntry]: entry->next == NULL\n");
         return map->entries[index];
     }
     else
     {
+        HashMapEntry *iterator = entry;
+        while (iterator != NULL)
+        {
+            if (strcmp(key, iterator->key) == 0)
+            {
+                return iterator;
+            }
+            iterator = iterator->next;
+        }
+        printf("FIXME\n");
+        return NULL;
     }
-    return NULL;
 }
-
 static void freeHashMapEntryValue(void *value)
 {
     if (value != NULL)
