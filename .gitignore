@@ -56,3 +56,4 @@ dkms.conf
 main
 lab.c
 lab
+.vscode
