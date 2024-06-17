@@ -5,8 +5,6 @@
 
 #include "./hashmap.h"
 
-#define SIZE 20
-
 static char *quickAllocatedString(char *);
 
 static char *quickAllocatedString(char *copy)
@@ -35,6 +33,9 @@ int main(void)
     example_entry = HashMapEntryInit("name", quickAllocatedString("josh"), CHAR_ARR_t);
     HashMapInsert(map, example_entry);
 
+    example_entry = HashMapEntryInit("data", quickAllocatedString("bigdata"), CHAR_ARR_t);
+    HashMapInsert(map, example_entry);
+    PrintHashMap(map);
     HashMapRemove(map, "key");
     HashMapEntry *deleted_entry = HashMapGet(map, "key");
     if (deleted_entry != NULL)

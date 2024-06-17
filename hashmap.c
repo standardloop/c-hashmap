@@ -6,14 +6,18 @@
 #include "./hashmap.h"
 
 static void freeHashMapEntryValue(void *);
-static void freeHashMapEntrySingle(HashMapEntry *);
-static void freeHashMapEntryList(HashMapEntry *);
-static void freeHashMapEntries(HashMapEntry **, u_int32_t, bool);
+static void freeHashMapEntrySingle(HashMapEntry *, bool);
+static void freeHashMapEntryList(HashMapEntry *, bool);
+static void freeHashMapEntries(HashMapEntry **, u_int32_t, bool, bool);
 static void printHashMapEntry(HashMapEntry *, u_int32_t);
-
 static u_int32_t defaultHashFunction(char *, u_int32_t);
 
+static bool hashMapEntriesInsert(HashMapEntry **, u_int32_t, HashMapEntry *);
+
+static HashMapEntry **hashMapEntriesInit(u_int32_t);
+
 static inline bool isMapFull(HashMap *);
+static void hashMapResize(HashMap *map);
 
 // Jenkins's one_at_a_time
 static u_int32_t defaultHashFunction(char *key, u_int32_t capacity)
@@ -38,6 +42,23 @@ extern HashMap *DefaultHashMapInit(void)
     return HashMapInit(DEFAULT_MAP_SIZE, NULL);
 }
 
+static HashMapEntry **hashMapEntriesInit(u_int32_t capacity)
+{
+    HashMapEntry **entries = malloc(sizeof(HashMapEntry *) * capacity);
+    if (entries == NULL)
+    {
+        return NULL;
+    }
+
+    for (u_int32_t i = 0; i < capacity; i++)
+    {
+        entries[i] = NULL;
+    }
+
+    return entries;
+}
+
+// FIXME add resize as well
 extern HashMap *HashMapInit(u_int32_t initial_capacity, HashFunction *hashFunction)
 {
     HashMap *map = malloc(sizeof(HashMap));
@@ -48,11 +69,8 @@ extern HashMap *HashMapInit(u_int32_t initial_capacity, HashFunction *hashFuncti
     }
     map->size = 0;
     map->capacity = initial_capacity;
-    map->entries = malloc(sizeof(HashMapEntry *) * map->capacity);
-    for (u_int32_t i = 0; i < initial_capacity; i++)
-    {
-        map->entries[i] = NULL;
-    }
+    map->entries = hashMapEntriesInit(initial_capacity);
+
     if (map->entries == NULL)
     {
         FreeHashMap(map);
@@ -79,27 +97,34 @@ extern void HashMapInsert(HashMap *map, HashMapEntry *entry)
     }
     if (isMapFull(map))
     {
-        // resize?
+        hashMapResize(map);
     }
     u_int32_t index = map->hashFunction(entry->key, map->capacity);
-    HashMapEntry *collision = map->entries[index];
+    bool collision = hashMapEntriesInsert(map->entries, index, entry);
+    if (!collision)
+    {
+        map->size++;
+    }
+}
+
+static bool hashMapEntriesInsert(HashMapEntry **entries, u_int32_t index, HashMapEntry *entry)
+{
+    HashMapEntry *collision = entries[index];
     if (collision == NULL)
     {
-        map->entries[index] = entry;
+        entries[index] = entry;
+        return false;
     }
-    else
+
+    HashMapEntry *iterator_prev = collision;
+    HashMapEntry *iterator = collision->next;
+    while (iterator != NULL)
     {
-        // printf("[HashMapInsert]: COLLISION at index: %u\n", index);
-        HashMapEntry *iterator_prev = collision;
-        HashMapEntry *iterator = collision->next;
-        while (iterator != NULL)
-        {
-            iterator = iterator->next;
-            iterator_prev = iterator_prev->next;
-        }
-        iterator_prev->next = entry;
+        iterator = iterator->next;
+        iterator_prev = iterator_prev->next;
     }
-    map->size++;
+    iterator_prev->next = entry;
+    return true;
 }
 
 extern HashMapEntry *HashMapGet(HashMap *map, char *key)
@@ -136,28 +161,36 @@ static void freeHashMapEntryValue(void *value)
     }
 }
 
-static void freeHashMapEntryList(HashMapEntry *entry)
+static void freeHashMapEntryList(HashMapEntry *entry, bool deep)
 {
     HashMapEntry *temp = NULL;
     while (entry != NULL)
     {
         temp = entry;
         entry = entry->next;
-        freeHashMapEntryValue(temp->value);
+        if (deep)
+        {
+            freeHashMapEntryValue(temp->value);
+        }
+
         free(temp);
     }
 }
 
-static void freeHashMapEntrySingle(HashMapEntry *entry)
+static void freeHashMapEntrySingle(HashMapEntry *entry, bool deep)
 {
     if (entry != NULL)
     {
-        freeHashMapEntryValue(entry->value);
+        if (deep)
+        {
+            freeHashMapEntryValue(entry->value);
+        }
+
         free(entry);
     }
 }
 
-static void freeHashMapEntries(HashMapEntry **entries, u_int32_t size, bool deep)
+static void freeHashMapEntries(HashMapEntry **entries, u_int32_t size, bool deep, bool entry_values)
 {
     if (entries == NULL)
     {
@@ -167,7 +200,7 @@ static void freeHashMapEntries(HashMapEntry **entries, u_int32_t size, bool deep
     {
         for (u_int32_t i = 0; i < size; i++)
         {
-            freeHashMapEntryList(entries[i]);
+            freeHashMapEntryList(entries[i], entry_values);
         }
     }
     free(entries);
@@ -181,7 +214,7 @@ extern void FreeHashMap(HashMap *map)
     }
     if (map->entries != NULL)
     {
-        freeHashMapEntries(map->entries, map->capacity, true);
+        freeHashMapEntries(map->entries, map->capacity, true, true);
     }
     free(map);
 }
@@ -220,7 +253,7 @@ extern void HashMapRemove(HashMap *map, char *key)
     }
     if (entry->next == NULL)
     {
-        freeHashMapEntrySingle(entry);
+        freeHashMapEntrySingle(entry, true);
         map->entries[index] = NULL;
         map->size--;
         return;
@@ -229,8 +262,8 @@ extern void HashMapRemove(HashMap *map, char *key)
     if (strcmp(key, entry->key) == 0)
     {
         map->entries[index] = entry->next;
-        freeHashMapEntrySingle(entry);
-        map->size--;
+        freeHashMapEntrySingle(entry, true);
+        // map->size--;
         return;
     }
 
@@ -242,8 +275,8 @@ extern void HashMapRemove(HashMap *map, char *key)
         {
             iterator_prev->next = iterator->next;
             map->entries[index] = iterator_prev;
-            freeHashMapEntrySingle(iterator);
-            map->size--;
+            freeHashMapEntrySingle(iterator, true);
+            // map->size--;
             break;
         }
         iterator_prev = iterator_prev->next;
@@ -297,4 +330,46 @@ static void printHashMapEntry(HashMapEntry *entry, u_int32_t index)
         }
     }
     printf("}");
+}
+
+static void hashMapResize(HashMap *map)
+{
+    if (map == NULL)
+    {
+        return;
+    }
+    printf("Resizing Hash Map!\n");
+
+    u_int32_t new_capacity = map->capacity * DEFAULT_RESIZE_MULTIPLE;
+    u_int32_t new_size = 0;
+
+    HashMapEntry **new_entries = hashMapEntriesInit(new_capacity);
+
+    if (new_entries == NULL)
+    {
+        return;
+    }
+
+    for (u_int32_t i = 0; i < map->capacity; i++)
+    {
+        HashMapEntry *entry = map->entries[i];
+        HashMapEntry *iterator = entry;
+
+        while (iterator != NULL)
+        {
+            HashMapEntry *new_entry = HashMapEntryInit(iterator->key, iterator->value, iterator->value_type); // need to move entry and not have to worry about next field
+            u_int32_t new_index = map->hashFunction(iterator->key, new_capacity);
+            bool collision = hashMapEntriesInsert(new_entries, new_index, new_entry);
+            if (!collision)
+            {
+                new_size++;
+            }
+            iterator = iterator->next;
+        }
+    }
+    freeHashMapEntries(map->entries, map->capacity, true, false);
+
+    map->size = new_size;
+    map->capacity = new_capacity;
+    map->entries = new_entries;
 }

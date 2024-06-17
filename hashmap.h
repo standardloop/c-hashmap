@@ -2,6 +2,7 @@
 #define HASHMAP_H
 
 #define DEFAULT_MAP_SIZE 10
+#define DEFAULT_RESIZE_MULTIPLE 2
 
 typedef u_int32_t(HashFunction)(char *, u_int32_t);
 
