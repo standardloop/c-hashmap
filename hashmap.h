@@ -38,5 +38,7 @@ extern void FreeHashMap(HashMap *);
 
 extern void HashMapInsert(HashMap *, HashMapEntry *);
 extern HashMapEntry *HashMapGet(HashMap *, char *);
+extern void HashMapRemove(HashMap *, char *);
 
+extern void PrintHashMap(HashMap *);
 #endif

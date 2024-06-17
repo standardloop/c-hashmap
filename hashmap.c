@@ -6,8 +6,10 @@
 #include "./hashmap.h"
 
 static void freeHashMapEntryValue(void *);
-static void freeHashMapEntry(HashMapEntry *);
+static void freeHashMapEntrySingle(HashMapEntry *);
+static void freeHashMapEntryList(HashMapEntry *);
 static void freeHashMapEntries(HashMapEntry **, u_int32_t, bool);
+static void printHashMapEntry(HashMapEntry *, u_int32_t);
 
 static u_int32_t defaultHashFunction(char *, u_int32_t);
 
@@ -87,7 +89,7 @@ extern void HashMapInsert(HashMap *map, HashMapEntry *entry)
     }
     else
     {
-        printf("[HashMapInsert]: COLLISION at index: %u\n", index);
+        // printf("[HashMapInsert]: COLLISION at index: %u\n", index);
         HashMapEntry *iterator_prev = collision;
         HashMapEntry *iterator = collision->next;
         while (iterator != NULL)
@@ -112,35 +114,29 @@ extern HashMapEntry *HashMapGet(HashMap *map, char *key)
     {
         return NULL;
     }
-    else if (entry->next == NULL)
+
+    HashMapEntry *iterator = entry;
+    while (iterator != NULL)
     {
-        printf("[HashMapEntry]: entry->next == NULL\n");
-        return map->entries[index];
-    }
-    else
-    {
-        HashMapEntry *iterator = entry;
-        while (iterator != NULL)
+        if (strcmp(key, iterator->key) == 0)
         {
-            if (strcmp(key, iterator->key) == 0)
-            {
-                return iterator;
-            }
-            iterator = iterator->next;
+            return iterator;
         }
-        printf("FIXME\n");
-        return NULL;
+        iterator = iterator->next;
     }
+    return NULL;
 }
+
 static void freeHashMapEntryValue(void *value)
 {
+    // WIP, pass value type as well
     if (value != NULL)
     {
         free(value);
     }
 }
 
-static void freeHashMapEntry(HashMapEntry *entry)
+static void freeHashMapEntryList(HashMapEntry *entry)
 {
     HashMapEntry *temp = NULL;
     while (entry != NULL)
@@ -149,6 +145,15 @@ static void freeHashMapEntry(HashMapEntry *entry)
         entry = entry->next;
         freeHashMapEntryValue(temp->value);
         free(temp);
+    }
+}
+
+static void freeHashMapEntrySingle(HashMapEntry *entry)
+{
+    if (entry != NULL)
+    {
+        freeHashMapEntryValue(entry->value);
+        free(entry);
     }
 }
 
@@ -162,7 +167,7 @@ static void freeHashMapEntries(HashMapEntry **entries, u_int32_t size, bool deep
     {
         for (u_int32_t i = 0; i < size; i++)
         {
-            freeHashMapEntry(entries[i]);
+            freeHashMapEntryList(entries[i]);
         }
     }
     free(entries);
@@ -199,4 +204,97 @@ extern HashMapEntry *HashMapEntryInit(char *key, void *value, enum HashMapEntryV
     entry->next = NULL;
 
     return entry;
+}
+
+extern void HashMapRemove(HashMap *map, char *key)
+{
+    if (map == NULL)
+    {
+        return;
+    }
+    u_int32_t index = map->hashFunction(key, map->capacity);
+    HashMapEntry *entry = map->entries[index];
+    if (entry == NULL)
+    {
+        return;
+    }
+    if (entry->next == NULL)
+    {
+        freeHashMapEntrySingle(entry);
+        map->entries[index] = NULL;
+        map->size--;
+        return;
+    }
+
+    if (strcmp(key, entry->key) == 0)
+    {
+        map->entries[index] = entry->next;
+        freeHashMapEntrySingle(entry);
+        map->size--;
+        return;
+    }
+
+    HashMapEntry *iterator_prev = entry;
+    HashMapEntry *iterator = entry->next;
+    while (iterator != NULL)
+    {
+        if (strcmp(key, iterator->key) == 0)
+        {
+            iterator_prev->next = iterator->next;
+            map->entries[index] = iterator_prev;
+            freeHashMapEntrySingle(iterator);
+            map->size--;
+            break;
+        }
+        iterator_prev = iterator_prev->next;
+        iterator = iterator->next;
+    }
+}
+
+extern void PrintHashMap(HashMap *map)
+{
+    if (map == NULL)
+    {
+        return;
+    }
+    if (map->size == 0)
+    {
+        printf("Map is currently Empty!\n");
+    }
+    printf("[\n");
+    for (u_int32_t i = 0; i < map->capacity; i++)
+    {
+        HashMapEntry *entry = map->entries[i];
+        if (entry != NULL)
+        {
+            printf("  ");
+            printHashMapEntry(entry, i);
+            if (i != map->capacity - 1)
+            {
+                printf(",");
+            }
+            printf("\n");
+        }
+    }
+    printf("]\n");
+}
+
+static void printHashMapEntry(HashMapEntry *entry, u_int32_t index)
+{
+    // FIXME, check for value type
+
+    HashMapEntry *iterator = entry;
+    printf("%u: {", index);
+    while (iterator != NULL)
+    {
+
+        printf("%s: %s", iterator->key, (char *)iterator->value);
+
+        iterator = iterator->next;
+        if (iterator != NULL)
+        {
+            printf(", ");
+        }
+    }
+    printf("}");
 }

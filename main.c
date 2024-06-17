@@ -7,6 +7,16 @@
 
 #define SIZE 20
 
+static char *quickAllocatedString(char *);
+
+static char *quickAllocatedString(char *copy)
+{
+    size_t true_len = strlen(copy) + 1;
+    char *allocated_string = malloc(sizeof(char) * true_len);
+    strcpy(allocated_string, copy);
+    return allocated_string;
+}
+
 int main(void)
 {
 
@@ -15,20 +25,27 @@ int main(void)
     {
         return EXIT_FAILURE;
     }
-    // printf("%u\n", map->hashFunction("hello", map->capacity));
-
-    char *example_value = malloc(sizeof(char) * 4);
-    strcpy(example_value, "hi!");
-    HashMapEntry *example_entry = HashMapEntryInit("key", example_value, CHAR_ARR_t);
+    HashMapEntry *example_entry;
+    example_entry = HashMapEntryInit("key", quickAllocatedString("hi!"), CHAR_ARR_t);
     HashMapInsert(map, example_entry);
 
-    char *example_value_2 = malloc(sizeof(char) * 4);
-    strcpy(example_value_2, "foo");
-    HashMapEntry *example_entry_2 = HashMapEntryInit("key2", example_value_2, CHAR_ARR_t);
-    HashMapInsert(map, example_entry_2);
+    example_entry = HashMapEntryInit("key2", quickAllocatedString("foo"), CHAR_ARR_t);
+    HashMapInsert(map, example_entry);
 
-    HashMapEntry *get_test = HashMapGet(map, "key2");
-    printf("%s\n", (char *)get_test->value);
+    example_entry = HashMapEntryInit("name", quickAllocatedString("josh"), CHAR_ARR_t);
+    HashMapInsert(map, example_entry);
+
+    HashMapRemove(map, "key");
+    HashMapEntry *deleted_entry = HashMapGet(map, "key");
+    if (deleted_entry != NULL)
+    {
+        printf("%s\n", (char *)deleted_entry->value);
+    }
+
+    // HashMapRemove(map, "key2");
+    // HashMapRemove(map, "name");
+
+    PrintHashMap(map);
 
     FreeHashMap(map);
 
